@@ -9,13 +9,19 @@ from google.cloud import storage
 import dotenv
 from tqdm import tqdm
 
-from utils.file import asave_json_content
 from collections import defaultdict
 
-from _google import GCP_ID
-from gdb_manager.storage import MAIN_BUCKET
-
 dotenv.load_dotenv()
+
+# MVP: local env defaults instead of external _google / gdb_manager packages
+GCP_ID = os.getenv("GCP_ID", "")
+MAIN_BUCKET = os.getenv("MAIN_BUCKET", "bestbrain")
+
+
+async def asave_json_content(path, content):
+    # MVP stub for async local JSON save used by upload helpers
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(content if isinstance(content, str) else json.dumps(content))
 
 
 class GBucket:
@@ -25,7 +31,7 @@ class GBucket:
         self.bucket_name = bucket_name or MAIN_BUCKET
 
     async def download_folder_content_or_single(self,prefix, name=None):
-        """Downloads content from a folder or a single file from cloud storage."""
+        """Downloads content from a folder or a single file_master from cloud storage."""
         try:
             blobs = await self.gather_folder_blobs(prefix)
             if not blobs:
@@ -70,7 +76,7 @@ class GBucket:
                 print("Fetch content local")
                 content = await self.aread_content(request_path, j=json_file)
             elif list(self.bucket.bucket.list_blobs(prefix=request_path, max_results=1)):
-                print("Fetch file from bucket")
+                print("Fetch file_master from bucket")
                 content = json.loads(self.bucket.download_blob(request_path))
                 await self.asave_ckpt_local(path=save_local, content=content)
 
@@ -79,12 +85,12 @@ class GBucket:
                 content = await self.download_json_content(url=request_path, j=json_file, save=file_name)
             return content
         except Exception as e:
-            print("not file found:", e)
+            print("not file_master found:", e)
         return None
 
     async def save_layer_ckpt(self, bucket_path, loal_path, data=None, graph_type=None):
         """
-        Save the graph as a JSON file and upload it to the bucket.
+        Save the graph as a JSON file_master and upload it to the bucket.
         """
         print("upload graph to bucket")
 
@@ -124,7 +130,7 @@ class GBucket:
             blobs = list(bucket.list_blobs(prefix=prefix))
             #print("len bl", len(blobs))
             for blob in blobs:
-                # Get full file path
+                # Get full file_master path
                 file_path = blob.name
                 #print("blob_name", file_path)
 
@@ -133,7 +139,7 @@ class GBucket:
                     prefix = blob.name
                     crawl_structure(prefix, file_path)
                 else:
-                    #print("Found file:", blob.name)
+                    #print("Found file_master:", blob.name)
                     paths_list.append(blob.name)
 
         crawl_structure(prefix, paths_list)
@@ -145,7 +151,7 @@ class GBucket:
     async def download_single_file(self, prefix, file_name, dest_path=None, download_as_string=False):
         try:
 
-            print(f"Download file {prefix}{file_name} from bucket {self.bucket_name} to dest {dest_path}")
+            print(f"Download file_master {prefix}{file_name} from bucket {self.bucket_name} to dest {dest_path}")
             jsonl_blobs = self.client.list_blobs(self.bucket_name, prefix=prefix)
             for jLblob in jsonl_blobs:
                 if jLblob.name == f"{prefix}{file_name}":
@@ -155,7 +161,7 @@ class GBucket:
                     os.makedirs(dirn, exist_ok=True)
                     save_path = os.path.join(f"{dest_path}")
                     jLblob.download_to_filename(save_path)
-                    print(f"Saved file")
+                    print(f"Saved file_master")
                     return True
         except Exception as e:
             print("Failed download:", e)
@@ -166,7 +172,7 @@ class GBucket:
 
 
     def upload_file(self, local_file_path, remote_path):
-        """Upload a local file to a specific path in the bucket."""
+        """Upload a local file_master to a specific path in the bucket."""
         blob = self.client.bucket(self.bucket_name).blob(remote_path)
         blob.upload_from_filename(local_file_path)
         print(f"Uploaded {local_file_path} to {remote_path}.")
@@ -191,7 +197,7 @@ class GBucket:
     def get_jsonl_file_names(self, blobs):
         jsonl_file_names = []
         for blob in blobs:
-            print("Working file", blob.name)
+            print("Working file_master", blob.name)
             if blob.name == "jsonl/":
                 jsonl_blobs = self.client.list_blobs(self.bucket_name, prefix=blob.name)
                 for jLblob in jsonl_blobs:
@@ -220,7 +226,7 @@ class GBucket:
 
     def upload_bucket(self, dest_path, src_path):
         blob = self.bucket.blob(dest_path)
-        print("Uploading file to GS")
+        print("Uploading file_master to GS")
         blob.upload_from_filename(src_path)
 
     def upload_from_str(self, dest_path, content):
@@ -235,7 +241,7 @@ class GBucket:
         Args:
             json_content (dict): JSON data to upload.
             folder_path (str): Folder path in the bucket (e.g., "my-folder/").
-            file_name (str): Name of the file to create in the bucket.
+            file_name (str): Name of the file_master to create in the bucket.
         """
         # Ensure the folder path ends with a slash
         try:
@@ -253,7 +259,7 @@ class GBucket:
         Args:
             json_content (dict): JSON data to upload.
             folder_path (str): Folder path in the bucket (e.g., "my-folder/").
-            file_name (str): Name of the file to create in the bucket.
+            file_name (str): Name of the file_master to create in the bucket.
         """
         # Ensure the folder path ends with a slash
         try:
@@ -283,6 +289,23 @@ class GBucket:
             return blob.download_as_text()
         #blob.download_to_filename(dest_path)
 
+    def download_prefix(self, gcs_prefix, local_dir):
+        # Download all objects under gcs_prefix into local_dir (keeps relative paths)
+        if gcs_prefix and not gcs_prefix.endswith('/'):
+            gcs_prefix = f'{gcs_prefix}/'
+        local_root = os.path.abspath(local_dir)
+        os.makedirs(local_root, exist_ok=True)
+        downloaded = []
+        for blob in self.client.list_blobs(self.bucket_name, prefix=gcs_prefix):
+            if blob.name.endswith('/'):
+                continue
+            rel = blob.name[len(gcs_prefix):] if gcs_prefix else blob.name
+            dest = os.path.join(local_root, rel.replace('/', os.sep))
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            blob.download_to_filename(dest)
+            downloaded.append(dest)
+        return downloaded
+
 
     def web_bulk_upload(self, urls, dest):
         [self.bucket.blob(dest).upload_from_string(requests.get(url)) for url in urls]
@@ -290,7 +313,7 @@ class GBucket:
 
 
     def upload_from_url(self, file_url, blob_name):
-        """ Uploads a file from URL to Google Cloud Storage with progress tracking """
+        """ Uploads a file_master from URL to Google Cloud Storage with progress tracking """
         print("Uploading:", file_url)
         try:
             blob = self.bucket.blob(blob_name)
@@ -304,7 +327,7 @@ class GBucket:
                             pbar.update(len(chunk))
             return f"gs://{self.bucket_name}/{blob_name}"
         except requests.RequestException as e:
-            raise Exception(f"Failed to download file: {str(e)}")
+            raise Exception(f"Failed to download file_master: {str(e)}")
         except Exception as e:
             raise Exception(f"Failed to upload to GCS: {str(e)}")
 
@@ -314,10 +337,10 @@ class GBucket:
 
         # Iterate over all blobs (files and folders) in the bucket
         for blob in self.client.list_blobs(self.bucket_name, prefix=prefix):
-            full_path = blob.name  # Example: "folder1/folder2/folder3/file.txt"
+            full_path = blob.name  # Example: "folder1/folder2/folder3/file_master.txt"
             path_parts = full_path.split("/")  # Split into folder structure
 
-            # Ensure it's a file (not an empty folder marker)
+            # Ensure it's a file_master (not an empty folder marker)
             if len(path_parts) > 1:
                 for i in range(len(path_parts) - 1):
                     folder_tree["/".join(path_parts[:i + 1])].add(full_path)  # Map parent folders to files
@@ -334,7 +357,7 @@ class GBucket:
 
 
 def convert_to_graph(file_path: str) -> nx.Graph:
-    """Converts a file into a networkx graph, supporting multiple formats."""
+    """Converts a file_master into a networkx graph, supporting multiple formats."""
     _, ext = os.path.splitext(file_path)
 
     try:
@@ -345,10 +368,10 @@ def convert_to_graph(file_path: str) -> nx.Graph:
         elif ext == ".edgelist":
             return nx.read_edgelist(file_path)
         else:
-            print("Unsupported file format.")
+            print("Unsupported file_master format.")
             return None
     except Exception as e:
-        print(f"Error converting file to graph: {e}")
+        print(f"Error converting file_master to graph: {e}")
         return None
 
 

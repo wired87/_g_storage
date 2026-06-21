@@ -9,7 +9,7 @@ def get_all_bucket():
     for b in blobs:
         print("Workinig", b.name)
         if b.name.endswith(".json") and b.name.startswith("graph_model/train_data/"):
-            print("Move file", b.name)
+            print("Move file_master", b.name)
             subprocess.run(f"gsutil mv gs://bestbrain/{b.name} gs://{bucket.bucket_name}/{SRC_PATH['paths']['train_data']['bucket']}/{b.name.split('/')[-1]}", shell=True)
 
 

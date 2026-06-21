@@ -50,7 +50,7 @@ class WebToCloudStorage(APIView):
     """
 
     def upload_from_url_async(self, file_url, blob_name):
-        """Threaded method to upload a file from URL to Google Cloud Storage with tqdm progress updates."""
+        """Threaded method to upload a file_master from URL to Google Cloud Storage with tqdm progress updates."""
         try:
             gcs_url = STORAGE_HANDLER.upload_from_url(file_url, blob_name)
             return gcs_url
@@ -81,7 +81,7 @@ class WebToCloudStorage(APIView):
 
 
     def upload_info_file(self, info, storage_handler, layer, part, sub_dir=None):
-        """Uploads JSON metadata file to storage."""
+        """Uploads JSON metadata file_master to storage."""
         print(f"Uploading metadata for {sub_dir}")
         asyncio.run(
             storage_handler.aupload_json_to_folder(
@@ -103,12 +103,12 @@ class WebToCloudStorage(APIView):
                     self.process_files(full_path, layer, part, uploaded_files, request, prefix=folder_name)
                 return
             elif os.path.isfile(local):
-                print("Working on file:", local)
+                print("Working on file_master:", local)
                 try:
                     with open(local, "r", encoding="utf-8") as f:
                         data = f.read()
                 except Exception as e:
-                    print(f"Error reading file {local}: {e}")
+                    print(f"Error reading file_master {local}: {e}")
                     return
             else:
                 print("Path does not exist:", local)
@@ -118,7 +118,7 @@ class WebToCloudStorage(APIView):
             data = request.data.get("data", "")
 
         if not data.strip():
-            print("No data found in file or request.")
+            print("No data found in file_master or request.")
             return
 
         urls = extract_urls(data)
