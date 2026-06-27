@@ -7,6 +7,7 @@ import requests
 from google.cloud import storage
 
 import dotenv
+from google.oauth2 import service_account
 from tqdm import tqdm
 
 from collections import defaultdict
@@ -15,7 +16,7 @@ dotenv.load_dotenv()
 
 # MVP: local env defaults instead of external _google / gdb_manager packages
 GCP_ID = os.getenv("GCP_ID", "")
-MAIN_BUCKET = os.getenv("MAIN_BUCKET", "bestbrain")
+MAIN_BUCKET = os.getenv("PROJECT_NAME", "LIGHTER")
 
 
 async def asave_json_content(path, content):
@@ -25,10 +26,12 @@ async def asave_json_content(path, content):
 
 
 class GBucket:
-    def __init__(self, bucket_name=None):
-        self.client = storage.Client(project=GCP_ID)
-        self.bucket = self.client.bucket(bucket_name or MAIN_BUCKET)
-        self.bucket_name = bucket_name or MAIN_BUCKET
+    def __init__(self, bucket_name=MAIN_BUCKET):
+        self.client = storage.Client(credentials=service_account.Credentials.from_service_account_file(
+            os.path.abspath(os.path.join(os.environ["GOOGLE_APPLICATION_CREDENTIALS"]))
+        ))
+        self.bucket_name = f"{bucket_name}_project".lower()
+        self.bucket = self.get_create()
 
     async def download_folder_content_or_single(self,prefix, name=None):
         """Downloads content from a folder or a single file_master from cloud storage."""
@@ -121,13 +124,13 @@ class GBucket:
             print("Failed download:", e)
 
 
-    def extract_gcs_train_tree(self, bucket_name, prefix=""):
+    def extract_gcs_train_tree(self, prefix=""):
         paths_list = []
         # Initialize GCS client
-        bucket = self.bucket.client.bucket(bucket_name)
 
         def crawl_structure(prefix, paths_list):
-            blobs = list(bucket.list_blobs(prefix=prefix))
+            blobs = list(self.bucket.list_blobs(prefix=prefix))
+            print("crawl", blobs)
             #print("len bl", len(blobs))
             for blob in blobs:
                 # Get full file_master path
@@ -146,8 +149,6 @@ class GBucket:
         print("Extracted files:", paths_list)
         return paths_list
 
-
-
     async def download_single_file(self, prefix, file_name, dest_path=None, download_as_string=False):
         try:
 
@@ -157,7 +158,7 @@ class GBucket:
                 if jLblob.name == f"{prefix}{file_name}":
                     if download_as_string:
                         return jLblob.download_as_string()
-                    dirn=os.path.dirname(dest_path)
+                    dirn = os.path.dirname(dest_path)
                     os.makedirs(dirn, exist_ok=True)
                     save_path = os.path.join(f"{dest_path}")
                     jLblob.download_to_filename(save_path)
@@ -166,10 +167,6 @@ class GBucket:
         except Exception as e:
             print("Failed download:", e)
         return False
-
-
-
-
 
     def upload_file(self, local_file_path, remote_path):
         """Upload a local file_master to a specific path in the bucket."""
@@ -183,7 +180,11 @@ class GBucket:
             print(f"Bucket {self.bucket_name} created.")
             return bucket
         except Exception as e:
-            print("BUCKET COULD NOT BE CREATED...", e)
+            print("Err", e)
+            try:
+                return self.client.bucket(self.bucket_name)
+            except Exception as e:
+                print("Fatal get bucket", e)
 
     def list_bucket_objects(self):
         try:
@@ -283,11 +284,11 @@ class GBucket:
             print("Error uploading", e)
 
 
-    def download_blob(self, bucket_path, t="str"):
+    def download_blob(self, bucket_path, dest_path=None):
         blob = self.bucket.blob(bucket_path)
-        if t=="str":
+        if dest_path is None:
             return blob.download_as_text()
-        #blob.download_to_filename(dest_path)
+        return blob.download_to_filename(dest_path)
 
     def download_prefix(self, gcs_prefix, local_dir):
         # Download all objects under gcs_prefix into local_dir (keeps relative paths)
