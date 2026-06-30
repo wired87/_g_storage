@@ -33,6 +33,14 @@ class GBucket:
         self.bucket_name = f"{bucket_name}_project".lower()
         self.bucket = self.get_create()
 
+    def delete(self, path):
+        try:
+            print("delte blob...")
+            self.bucket.delete_blob(path)
+            print("deleted blob", path)
+        except Exception as e:
+            print("Err delete", e)
+
     async def download_folder_content_or_single(self,prefix, name=None):
         """Downloads content from a folder or a single file_master from cloud storage."""
         try:
@@ -227,7 +235,7 @@ class GBucket:
 
     def upload_bucket(self, dest_path, src_path):
         blob = self.bucket.blob(dest_path)
-        print("Uploading file_master to GS")
+        print(f"Uploading from {src_path} to GCS", dest_path)
         blob.upload_from_filename(src_path)
 
     def upload_from_str(self, dest_path, content):
