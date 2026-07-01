@@ -28,7 +28,7 @@ async def asave_json_content(path, content):
 class GBucket:
     def __init__(self, bucket_name=MAIN_BUCKET):
         self.client = storage.Client(credentials=service_account.Credentials.from_service_account_file(
-            os.path.abspath(os.path.join(os.environ["GOOGLE_APPLICATION_CREDENTIALS"]))
+            os.path.abspath(os.path.join(os.environ["GOOGLE_STORAGE_CREDENTIALS"]))
         ))
         self.bucket_name = f"{bucket_name}_project".lower()
         self.bucket = self.get_create()
